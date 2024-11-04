@@ -1,0 +1,107 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-11-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+# Load necessary libraries
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Load the dataset
+data <- read.csv("Electronic_sales_Sep2023-Sep2024.csv")
+
+# Data preprocessing
+data$Purchase.Date <- as.Date(data$Purchase.Date)
+data$Month <- format(data$Purchase.Date, "%Y-%m")  # Extract year-month for heatmap aggregation
+
+# Summarize data by month, product type, and order status
+summary_data <- data %>%
+  group_by(Month, Product.Type, Order.Status) %>%
+  summarise(Sales = n())
+
+# Define UI
+ui <- fluidPage(
+  titlePanel("Heatmap of Sales by Purchase Date, Product Type, and Order Status"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      dateRangeInput("dateRange", 
+                     "Select Date Range:",
+                     start = min(data$Purchase.Date),
+                     end = max(data$Purchase.Date)),
+      
+      selectInput("productType", 
+                  "Select Product Type:", 
+                  choices = c("All", unique(data$Product.Type)), 
+                  selected = "All"),
+      
+      selectInput("orderStatus", 
+                  "Select Order Status:", 
+                  choices = c("All", unique(data$Order.Status)), 
+                  selected = "All")
+    ),
+    
+    mainPanel(
+      plotOutput("heatmap")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  output$heatmap <- renderPlot({
+    
+    # Filter data based on user inputs
+    filtered_data <- summary_data %>%
+      filter(Month >= format(input$dateRange[1], "%Y-%m") &
+             Month <= format(input$dateRange[2], "%Y-%m"))
+    
+    if (input$productType != "All") {
+      filtered_data <- filtered_data %>% filter(Product.Type == input$productType)
+    }
+    
+    if (input$orderStatus != "All") {
+      filtered_data <- filtered_data %>% filter(Order.Status == input$orderStatus)
+    }
+    
+    # Create the heatmap
+    ggplot(filtered_data, aes(x = Month, y = Product.Type, fill = Sales)) +
+      geom_tile(color = "white") +
+      scale_fill_gradient(low = "blue", high = "red") +
+      labs(title = "Heatmap of Sales by Purchase Date, Product Type, and Order Status",
+           x = "Month",
+           y = "Product Type",
+           fill = "Sales Count") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
