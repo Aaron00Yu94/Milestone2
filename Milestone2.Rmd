@@ -1,16 +1,13 @@
 ```{r}
-# 加载必要的库
 library(shiny)
 library(ggplot2)
 library(dplyr)
 library(lubridate)
 library(tidyr)
 
-# 加载数据集
 url <- "https://raw.githubusercontent.com/Aaron00Yu94/Milestone2/main/Electronic_sales_Sep2023-Sep2024.csv"
 electronic_sale_data <- read.csv(url)
 
-# 数据预处理：添加月份和年份，并确保每个产品类型在时间范围内的每个月都有数据
 electronic_sale_data <- electronic_sale_data %>%
   mutate(
     Purchase.Date = as.Date(Purchase.Date, format = "%Y-%m-%d"),
@@ -18,18 +15,16 @@ electronic_sale_data <- electronic_sale_data %>%
     Year = year(Purchase.Date)
   )
 
-# 自定义月份顺序（从9月开始）
 month_levels <- c("Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug")
 
 
-# 创建 Shiny UI
 ui <- fluidPage(
   titlePanel("Sales Analysis by Product Type (2023-09 to 2024-09)"),
   
   sidebarLayout(
     sidebarPanel(
       selectInput("product_type", "Select Product Type:", choices = unique(electronic_sale_data$Product.Type)),
-      textOutput("maxRevenueMonth")  # 输出最大销售额月份信息
+      textOutput("maxRevenueMonth") 
     ),
     
     mainPanel(
@@ -43,9 +38,7 @@ ui <- fluidPage(
 
 # Shiny Server
 server <- function(input, output) {
-  # 数据过滤器
   filtered_data <- reactive({
-    # 过滤并汇总每月数据，确保每月数据完整
     data <- electronic_sale_data %>%
       filter(Product.Type == input$product_type) %>%
       group_by(Year, Month) %>%
@@ -54,15 +47,12 @@ server <- function(input, output) {
         Total_Revenue = sum(Total.Price, na.rm = TRUE),
         .groups = "drop"
       )
-    
-    # 确保月份按自定义顺序排列
     data <- data %>%
       mutate(Month = factor(Month, levels = month_levels))
     
     return(data)
   })
   
-  # 计算销售额最高的月份
   output$maxRevenueMonth <- renderText({
     data <- filtered_data()
     max_month <- data %>% 
@@ -73,7 +63,6 @@ server <- function(input, output) {
           max_month$Month, max_month$Year, "with a total revenue of $", round(max_month$Total_Revenue, 2))
   })
   
-  # 绘制销售数量的跨年度月度图
   output$quantityPlot <- renderPlot({
   data <- filtered_data()
   
@@ -91,10 +80,10 @@ server <- function(input, output) {
       plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
       axis.text.x = element_text(angle = 45, hjust = 1)
     ) +
-    scale_x_discrete(limits = month_levels, drop = FALSE)  # 保留自定义的月份顺序，确保跨年排序正确
+    scale_x_discrete(limits = month_levels, drop = FALSE)  
 })
   
-  # 绘制销售额的跨年度月度图
+
   output$revenuePlot <- renderPlot({
     data <- filtered_data()
     
@@ -116,6 +105,5 @@ server <- function(input, output) {
   })
 }
 
-# 运行 Shiny 应用
 shinyApp(ui = ui, server = server)
 ```
