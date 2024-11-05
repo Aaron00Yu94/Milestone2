@@ -16,6 +16,7 @@ library(tidyr)
 ```{r}
 data <- read.csv("https://raw.githubusercontent.com/Aaron00Yu94/Milestone2/refs/heads/main/Electronic_sales_Sep2023-Sep2024.csv")
 
+# Convert date column to Date type
 data$Purchase.Date <- as.Date(data$Purchase.Date, format = "%Y-%m-%d")
 
 # Preprocess the data to create Age_Group and filter rows with add-ons purchased
@@ -38,21 +39,25 @@ ui <- fluidPage(
   
   sidebarLayout(
     sidebarPanel(
-      # Age group selector for filtering
-      selectInput("age_group", "Select Age Group:", 
-                  choices = unique(data$Age_Group), 
-                  selected = unique(data$Age_Group)[1]),
+      # Age group checkbox selector for filtering with multi-select option
+      checkboxGroupInput("age_group", "Select Age Group:", 
+                         choices = unique(data$Age_Group), 
+                         selected = unique(data$Age_Group)[1]),
       # Date range selector for filtering
       dateRangeInput("date_range", "Select Date Range:",
                      start = min(data$Purchase.Date, na.rm = TRUE),
                      end = max(data$Purchase.Date, na.rm = TRUE)),
-      # Order status selector for filtering
-      selectInput("order_status", "Select Order Status:",
-                  choices = c("Completed", "Cancelled"),
-                  selected = "Completed"),
+      # Order status checkbox selector for filtering with multi-select option
+      checkboxGroupInput("order_status", "Select Order Status:",
+                         choices = c("Completed", "Cancelled"),
+                         selected = "Completed"),
+      # Rating checkbox selector for filtering with multi-select option
+      checkboxGroupInput("rating", "Select Rating:", 
+                         choices = unique(data$Rating), 
+                         selected = unique(data$Rating)[1]),
       # Relationship selector for plot type
       selectInput("relationship", "Select Relationship to View:",
-                  choices = c("Product Type vs Add-On Purchase", "Product Type vs Shipping Type"),
+                  choices = c("Product Type vs Add-On Purchase", "Product Type vs Shipping Type", "Total Price by SKU", "Quantity by SKU"),
                   selected = "Product Type vs Add-On Purchase")
     ),
     
@@ -69,30 +74,56 @@ ui <- fluidPage(
 # Define server logic
 server <- function(input, output) {
   
+  # Filter data based on user selections for age group, date range, order status, and rating
+  reactiveData <- reactive({
+    cleaned_data %>% 
+      filter(
+        Age_Group %in% input$age_group,
+        Purchase.Date >= input$date_range[1] & Purchase.Date <= input$date_range[2],
+        Order.Status %in% input$order_status,
+        Rating %in% as.integer(input$rating)
+      )
+  })
+  
   # Conditional plot based on selected relationship
   output$relationship_plot <- renderPlot({
-    # Filter cleaned data based on selected age group, date range, and order status
-    filtered_data <- cleaned_data %>% 
-      filter(Age_Group == input$age_group,
-             Purchase.Date >= input$date_range[1] & Purchase.Date <= input$date_range[2],
-             Order.Status == input$order_status)
+    data <- reactiveData()
     
-    # Conditional rendering of plots based on user selection
     if (input$relationship == "Product Type vs Add-On Purchase") {
-      ggplot(filtered_data, aes(x = Product.Type, fill = Add_On)) +
+      ggplot(data, aes(x = Product.Type, fill = Add_On)) +
         geom_bar(position = "dodge") +
-        labs(title = paste("Add-On Purchases by Product Type for Age Group", input$age_group, "and Order Status", input$order_status), 
+        labs(title = paste("Add-On Purchases by Product Type for Selected Filters"), 
              x = "Product Type", y = "Count") +
         scale_fill_manual(values = c("Accessory" = "aquamarine4", "Extended Warranty" = "antiquewhite2", "Impulse Item" = "azure3")) +
         theme_minimal() +
         theme(legend.position = "top")
       
     } else if (input$relationship == "Product Type vs Shipping Type") {
-      ggplot(filtered_data, aes(x = Product.Type, fill = Shipping.Type)) +
+      ggplot(data, aes(x = Product.Type, fill = Shipping.Type)) +
         geom_bar(position = "dodge") +
-        labs(title = paste("Shipping Type by Product Type for Age Group", input$age_group, "and Order Status", input$order_status), 
+        labs(title = paste("Shipping Type by Product Type for Selected Filters"), 
              x = "Product Type", y = "Count") +
         scale_fill_manual(values = c("Standard" = "aquamarine4", "Express" = "antiquewhite2", "Overnight" = "azure3", "Same Day" = "cyan3", "Expedited" = "bisque4")) +
+        theme_minimal() +
+        theme(legend.position = "top")
+      
+    } else if (input$relationship == "Total Price by SKU") {
+      data %>%
+        group_by(SKU, Gender) %>%
+        summarise(Total_Price = sum(Total.Price, na.rm = TRUE)) %>%
+        ggplot(aes(x = SKU, y = Total_Price, fill = Gender)) +
+        geom_col(position = position_dodge()) +
+        labs(title = "Total Price by SKU and Gender", x = "SKU", y = "Total Price") +
+        theme_minimal() +
+        theme(legend.position = "top")
+      
+    } else if (input$relationship == "Quantity by SKU") {
+      data %>%
+        group_by(SKU, Gender) %>%
+        summarise(Total_Quantity = sum(Quantity, na.rm = TRUE)) %>%
+        ggplot(aes(x = SKU, y = Total_Quantity, fill = Gender)) +
+        geom_col(position = position_dodge()) +
+        labs(title = "Quantity by SKU and Gender", x = "SKU", y = "Quantity") +
         theme_minimal() +
         theme(legend.position = "top")
     }
@@ -100,59 +131,13 @@ server <- function(input, output) {
   
   # Display filtered data with additional information
   output$filtered_data <- renderTable({
-    # Filter data based on age group, date range, and order status
-    filtered_data <- cleaned_data %>% 
-      filter(Age_Group == input$age_group,
-             Purchase.Date >= input$date_range[1] & Purchase.Date <= input$date_range[2],
-             Order.Status == input$order_status)
-    
-    # Display selected columns
-    filtered_data %>%
+    reactiveData() %>%
       select(Customer.ID, Age, Gender, Loyalty.Member, Product.Type, SKU, Order.Status, Total.Price, Add.on.Total)
   })
 }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
-```
-
-
-```{r}
-library(ggplot2)
-library(dplyr)
-library(tidyr)
-
-# Load data
-
-data <- read.csv("Electronic_sales_Sep2023-Sep2024.csv")
-
-# Step 1: Create Age_Group and filter rows with add-ons purchased
-data <- data %>%
-  mutate(
-    Age_Group = cut(Age, breaks = seq(0, 100, by = 10), 
-                    labels = paste(seq(10, 100, by = 10) - 10, seq(10, 100, by = 10) - 1, sep = "-")),
-    Add_On_Purchase = ifelse(!is.na(Add.ons.Purchased) & Add.ons.Purchased != "", "Yes", "No")
-  ) %>%
-  filter(Add_On_Purchase == "Yes")  # Only keep rows where add-ons were purchased
-
-# Step 2: Separate multiple add-ons into individual rows, then filter out any remaining empty values after separation
-cleaned_data <- data %>%
-  separate_rows(Add.ons.Purchased, sep = ",") %>%
-  mutate(Add_On = trimws(Add.ons.Purchased)) %>%  # Remove any extra whitespace from Add-On names
-  filter(!is.na(Add_On) & Add_On != "")  # Strictly filter out empty values in Add_On
-
-# Step 3: Filter by a specific age group, e.g., "60-69"
-filtered_data <- cleaned_data %>% filter(Age_Group == "60-69")
-
-# Step 4: Create the ggplot
-ggplot(filtered_data, aes(x = Product.Type, fill = Add_On)) +
-  geom_bar(position = "dodge") +
-  labs(title = "Add-On Purchases by Product Type for Age Group 60-69", 
-       x = "Product Type", y = "Count") +
-  scale_fill_manual(values = c("Accessory" = "blue", "Extended Warranty" = "green", "Impulse Item" = "salmon")) +
-  theme_minimal() +
-  theme(legend.position = "top")
 
 ```
 
