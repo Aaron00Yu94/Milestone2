@@ -1,5 +1,4 @@
 ```{r}
-# Load necessary libraries
 library(shiny)
 library(dplyr)
 library(tidyr)
@@ -7,7 +6,6 @@ library(plotly)
 library(ggplot2)
 library(lubridate)
 
-# Load and preprocess data
 data <- read.csv("https://raw.githubusercontent.com/Aaron00Yu94/Milestone2/refs/heads/main/Electronic_sales_Sep2023-Sep2024.csv")
 data$Purchase.Date <- as.Date(data$Purchase.Date, format = "%Y-%m-%d")
 data <- data %>%
@@ -22,7 +20,14 @@ cleaned_data <- data %>%
   mutate(Add_On = trimws(Add.ons.Purchased)) %>%
   filter(!is.na(Add_On) & Add_On != "")
 
-# UI definition
+hdata <- read.csv("https://raw.githubusercontent.com/Aaron00Yu94/Milestone2/refs/heads/main/Electronic_sales_Sep2023-Sep2024.csv")
+hdata$Purchase.Date <- as.Date(hdata$Purchase.Date)
+hdata$Month <- format(hdata$Purchase.Date, "%Y-%m")  
+
+summary_data <- hdata %>%
+  group_by(Month, Product.Type, Order.Status) %>%
+  summarise(Sales = n())
+
 ui <- fluidPage(
   titlePanel("Combined Sales Analysis Dashboard"),
   sidebarLayout(
@@ -33,7 +38,6 @@ ui <- fluidPage(
                               "Customer Behavior Analysis",
                               "Graphical Query")),
       
-      # UI elements for each visualization
       conditionalPanel(
         condition = "input.visualization == 'Heatmap of Sales'",
         dateRangeInput("dateRange1", "Select Date Range:", start = min(data$Purchase.Date), end = max(data$Purchase.Date)),
@@ -66,7 +70,6 @@ ui <- fluidPage(
     ),
     
     mainPanel(
-      # Output panels for each visualization
       conditionalPanel(
         condition = "input.visualization == 'Heatmap of Sales'",
         plotOutput("heatmap")
@@ -94,18 +97,19 @@ ui <- fluidPage(
   )
 )
 
-# Server logic
 server <- function(input, output) {
 
-  # Heatmap of Sales
   output$heatmap <- renderPlot({
-    req(input$visualization == "Heatmap of Sales")
-    filtered_data <- cleaned_data %>%
-      filter(Month >= format(input$dateRange1[1], "%Y-%m") & Month <= format(input$dateRange1[2], "%Y-%m"))
+    req(input$dateRange1, input$productType1, input$orderStatus1)  
+    
+    filtered_data <- summary_data %>%
+      filter(Month >= format(input$dateRange1[1], "%Y-%m") &
+             Month <= format(input$dateRange1[2], "%Y-%m"))
     
     if (input$productType1 != "All") {
       filtered_data <- filtered_data %>% filter(Product.Type == input$productType1)
     }
+    
     if (input$orderStatus1 != "All") {
       filtered_data <- filtered_data %>% filter(Order.Status == input$orderStatus1)
     }
@@ -113,11 +117,15 @@ server <- function(input, output) {
     ggplot(filtered_data, aes(x = Month, y = Product.Type, fill = Sales)) +
       geom_tile(color = "white") +
       scale_fill_gradient(low = "blue", high = "red") +
-      labs(title = "Heatmap of Sales by Purchase Date, Product Type, and Order Status", x = "Month", y = "Product Type", fill = "Sales Count") +
-      theme_minimal()
+      labs(title = "Heatmap of Sales by Purchase Date, Product Type, and Order Status",
+           x = "Month",
+           y = "Product Type",
+           fill = "Sales Count") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
   })
+
   
-  # Sales Analysis by Product Type
   filtered_data2 <- reactive({
     cleaned_data %>%
       filter(Product.Type == input$product_type2) %>%
@@ -150,7 +158,6 @@ server <- function(input, output) {
       theme_minimal()
   })
   
-  # Customer Behavior Analysis
   output$relationship_plot3 <- renderPlot({
     req(input$visualization == "Customer Behavior Analysis")
     filtered_data3 <- cleaned_data %>%
@@ -169,7 +176,6 @@ server <- function(input, output) {
       select(Customer.ID, Age, Gender, Loyalty.Member, Product.Type, SKU, Order.Status, Total.Price, Add.on.Total)
   })
 
-  # Graphical Query
   reactiveData4 <- reactive({
     cleaned_data %>%
       filter(
@@ -204,7 +210,6 @@ server <- function(input, output) {
   })
 }
 
-# Run the application 
 shinyApp(ui = ui, server = server)
 
 ```

@@ -1,14 +1,34 @@
+<<<<<<< HEAD
 ```{r}
 # Load necessary libraries
+=======
+---
+title: "project2"
+author: "Jing Chang"
+date: '2024-11-04'
+output: html_document
+runtime: shiny
+---
+
+
+```{r}
+>>>>>>> d638a818f2c6af1e2e0512b119fc84733ab2a434
 library(shiny)
 library(dplyr)
 library(tidyr)
 library(plotly)
+<<<<<<< HEAD
 library(ggplot2)
 library(lubridate)
 
 # Load and preprocess data
 data <- read.csv("https://raw.githubusercontent.com/Aaron00Yu94/Milestone2/refs/heads/main/Electronic_sales_Sep2023-Sep2024.csv")
+=======
+library(ggplot2)  # Ensure ggplot2 is also loaded for using its plotting functions
+
+data <- read.csv("https://raw.githubusercontent.com/Aaron00Yu94/Milestone2/refs/heads/main/Electronic_sales_Sep2023-Sep2024.csv")
+
+>>>>>>> d638a818f2c6af1e2e0512b119fc84733ab2a434
 data$Purchase.Date <- as.Date(data$Purchase.Date, format = "%Y-%m-%d")
 data <- data %>%
   mutate(
@@ -22,6 +42,7 @@ cleaned_data <- data %>%
   mutate(Add_On = trimws(Add.ons.Purchased)) %>%
   filter(!is.na(Add_On) & Add_On != "")
 
+<<<<<<< HEAD
 # UI definition
 ui <- fluidPage(
   titlePanel("Combined Sales Analysis Dashboard"),
@@ -63,9 +84,20 @@ ui <- fluidPage(
         checkboxGroupInput("rating4", "Select Rating:", choices = unique(data$Rating), selected = unique(data$Rating)[1]),
         selectInput("relationship4", "Select Relationship to View:", choices = c("Product Type vs Add-On Purchase", "Product Type vs Shipping Type"))
       )
+=======
+ui <- fluidPage(
+  titlePanel("Customer Behavior Analysis"),
+  sidebarLayout(
+    sidebarPanel(
+      checkboxGroupInput("age_group", "Select Age Group:", choices = unique(data$Age_Group), selected = unique(data$Age_Group)[1]),
+      dateRangeInput("date_range", "Select Date Range:", start = min(data$Purchase.Date, na.rm = TRUE), end = max(data$Purchase.Date, na.rm = TRUE)),
+      checkboxGroupInput("order_status", "Select Order Status:", choices = c("Completed", "Cancelled"), selected = "Completed"),
+      checkboxGroupInput("rating", "Select Rating:", choices = unique(data$Rating), selected = unique(data$Rating)[1]),
+      selectInput("relationship", "Select Relationship to View:", choices = c("Product Type vs Add-On Purchase", "Product Type vs Shipping Type"), selected = "Product Type vs Add-On Purchase")
+>>>>>>> d638a818f2c6af1e2e0512b119fc84733ab2a434
     ),
-    
     mainPanel(
+<<<<<<< HEAD
       # Output panels for each visualization
       conditionalPanel(
         condition = "input.visualization == 'Heatmap of Sales'",
@@ -90,10 +122,16 @@ ui <- fluidPage(
         h4("Filtered Data"),
         tableOutput("filtered_data4")
       )
+=======
+      plotlyOutput("relationship_plot"),
+      h4("Filtered Data"),
+      tableOutput("filtered_data")
+>>>>>>> d638a818f2c6af1e2e0512b119fc84733ab2a434
     )
   )
 )
 
+<<<<<<< HEAD
 # Server logic
 server <- function(input, output) {
 
@@ -200,11 +238,57 @@ server <- function(input, output) {
   output$filtered_data4 <- renderTable({
     req(input$visualization == "Graphical Query")
     reactiveData4() %>%
+=======
+server <- function(input, output) {
+  reactiveData <- reactive({
+    cleaned_data %>%
+      filter(
+        Age_Group %in% input$age_group,
+        Purchase.Date >= input$date_range[1] & Purchase.Date <= input$date_range[2],
+        Order.Status %in% input$order_status,
+        Rating %in% input$rating
+      )
+  })
+
+  output$relationship_plot <- renderPlotly({
+    data <- reactiveData()
+
+    # Debug: Print unique values in Shipping.Type to ensure correct mapping
+    print(unique(data$Shipping.Type))
+
+    # Decide the plot based on input$relationship
+    p <- if (input$relationship == "Product Type vs Shipping Type") {
+      ggplot(data, aes(x = Product.Type, fill = Shipping.Type)) +
+        geom_bar(position = "dodge", show.legend = TRUE) +
+        labs(title = "Shipping Type by Product Type", x = "Product Type", y = "Count") +
+        scale_fill_manual(values = c("Standard" = "aquamarine4", "Express" = "antiquewhite2", 
+                                     "Overnight" = "azure3", "Same Day" = "cyan3", "Expedited" = "bisque4")) +
+        theme_minimal() +
+        theme(legend.position = "top")
+    } else {
+      ggplot(data, aes(x = Product.Type, fill = Add_On)) +
+        geom_bar(position = "dodge", show.legend = TRUE) +
+        labs(title = "Add-On Purchases by Product Type", x = "Product Type", y = "Count") +
+        scale_fill_manual(values = c("Accessory" = "aquamarine4", "Extended Warranty" = "antiquewhite2", "Impulse Item" = "azure3")) +
+        theme_minimal() +
+        theme(legend.position = "top")
+    }
+
+    ggplotly(p, tooltip = c("x", "fill", "count"))
+  })
+
+  output$filtered_data <- renderTable({
+    reactiveData() %>%
+>>>>>>> d638a818f2c6af1e2e0512b119fc84733ab2a434
       select(Customer.ID, Age, Gender, Loyalty.Member, Product.Type, SKU, Order.Status, Total.Price, Add.on.Total)
   })
 }
 
-# Run the application 
-shinyApp(ui = ui, server = server)
+shinyApp(ui, server)
 
+
+<<<<<<< HEAD
 ```
+=======
+```
+>>>>>>> d638a818f2c6af1e2e0512b119fc84733ab2a434
