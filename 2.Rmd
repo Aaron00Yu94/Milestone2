@@ -1,0 +1,124 @@
+---
+title: "Untitled"
+author: "Brendon Chen"
+date: "2024-11-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(shiny)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(plotly)
+
+# Load and preprocess the data
+data <- read.csv("https://raw.githubusercontent.com/Aaron00Yu94/Milestone2/refs/heads/main/Electronic_sales_Sep2023-Sep2024.csv")
+data$Purchase.Date <- as.Date(data$Purchase.Date, format = "%Y-%m-%d")
+data <- data %>%
+  mutate(
+    Age_Group = cut(Age, breaks = seq(0, 100, by = 10), 
+                    labels = paste(seq(10, 100, by = 10) - 10, seq(10, 100, by = 10) - 1, sep = "-")),
+    Add_On_Purchase = ifelse(!is.na(Add.ons.Purchased) & Add.ons.Purchased != "", "Yes", "No")
+  )
+
+cleaned_data <- data %>%
+  separate_rows(Add.ons.Purchased, sep = ",") %>%
+  mutate(Add_On = trimws(Add.ons.Purchased)) %>%
+  filter(!is.na(Add_On) & Add_On != "")
+
+# Define UI
+ui <- fluidPage(
+  titlePanel("Customer Behavior Analysis"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      checkboxGroupInput("age_group", "Select Age Group:", 
+                         choices = unique(data$Age_Group), 
+                         selected = unique(data$Age_Group)[1]),
+      dateRangeInput("date_range", "Select Date Range:",
+                     start = min(data$Purchase.Date, na.rm = TRUE),
+                     end = max(data$Purchase.Date, na.rm = TRUE)),
+      checkboxGroupInput("order_status", "Select Order Status:",
+                         choices = c("Completed", "Cancelled"),
+                         selected = "Completed"),
+      checkboxGroupInput("rating", "Select Rating:", 
+                         choices = unique(data$Rating), 
+                         selected = unique(data$Rating)[1]),
+      selectInput("relationship", "Select Relationship to View:",
+                  choices = c("Product Type vs Add-On Purchase", 
+                              "Product Type vs Shipping Type", 
+                              "Total Price by SKU", 
+                              "Quantity by SKU"),
+                  selected = "Product Type vs Add-On Purchase")
+    ),
+    mainPanel(
+      plotlyOutput("relationship_plot"),
+      h4("Filtered Data"),
+      tableOutput("filtered_data")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  reactiveData <- reactive({
+    cleaned_data %>%
+      filter(
+        Age_Group %in% input$age_group,
+        Purchase.Date >= input$date_range[1] & Purchase.Date <= input$date_range[2],
+        Order.Status %in% input$order_status,
+        Rating %in% input$rating
+      )
+  })
+
+  output$relationship_plot <- renderPlotly({
+    data <- reactiveData()
+
+    # Conditionally render plots based on the selected relationship
+    p <- if (input$relationship == "Product Type vs Add-On Purchase") {
+      ggplot(data, aes(x = Product.Type, fill = Add_On)) +
+        geom_bar(stat = "count", position = "dodge") +
+        labs(title = "Add-On Purchases by Product Type", x = "Product Type", y = "Count")
+    } else if (input$relationship == "Product Type vs Shipping Type") {
+      ggplot(data, aes(x = Product.Type, fill = Shipping.Type)) +
+        geom_bar(stat = "count", position = "dodge") +
+        labs(title = "Shipping Type by Product Type", x = "Product Type", y = "Count")
+    } else if (input$relationship == "Total Price by SKU") {
+      # Group data by SKU and Gender for Total Price
+      grouped_data <- data %>%
+        group_by(SKU, Gender) %>%
+        summarise(Total_Price = sum(Total.Price, na.rm = TRUE), .groups = 'drop')
+      ggplot(grouped_data, aes(x = SKU, y = Total_Price, fill = Gender)) +
+        geom_col(position = position_dodge()) +
+        labs(title = "Total Price by SKU and Gender", x = "SKU", y = "Total Price")
+    } else if (input$relationship == "Quantity by SKU") {
+      # Group data by SKU and Gender for Quantity
+      grouped_data <- data %>%
+        group_by(SKU, Gender) %>%
+        summarise(Total_Quantity = sum(Quantity, na.rm = TRUE), .groups = 'drop')
+      ggplot(grouped_data, aes(x = SKU, y = Total_Quantity, fill = Gender)) +
+        geom_col(position = position_dodge()) +
+        labs(title = "Quantity by SKU and Gender", x = "SKU", y = "Quantity")
+    }
+    
+    # Convert ggplot object to plotly for interactive visualization
+    ggplotly(p, tooltip = c("x", "y", "fill"))
+  })
+
+  output$filtered_data <- renderTable({
+    reactiveData() %>%
+      select(Customer.ID, Age, Gender, Loyalty.Member, Product.Type, SKU, Order.Status, Total.Price, Add.on.Total)
+  })
+}
+
+# Run the application
+shinyApp(ui, server)
+
+```
+
+
